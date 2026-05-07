@@ -63,6 +63,53 @@ func (conf *Config) ToWgQuick() string {
 		output.WriteString("Table = off\n")
 	}
 
+	if conf.Turn.Enabled {
+		output.WriteString("\n[TURN]\n")
+		output.WriteString("Enabled = true\n")
+		if conf.Turn.Mode != "" {
+			output.WriteString(fmt.Sprintf("Mode = %s\n", conf.Turn.Mode))
+		}
+		if conf.Turn.Link != "" {
+			output.WriteString(fmt.Sprintf("Link = %s\n", conf.Turn.Link))
+		}
+		if !conf.Turn.Peer.IsEmpty() {
+			output.WriteString(fmt.Sprintf("Peer = %s\n", conf.Turn.Peer.String()))
+		}
+		if !conf.Turn.Listen.IsEmpty() {
+			output.WriteString(fmt.Sprintf("Listen = %s\n", conf.Turn.Listen.String()))
+		}
+		if conf.Turn.Streams > 0 {
+			output.WriteString(fmt.Sprintf("Streams = %d\n", conf.Turn.Streams))
+		}
+		if conf.Turn.UDP {
+			output.WriteString("UDP = true\n")
+		}
+		if conf.Turn.TurnIP != "" {
+			output.WriteString(fmt.Sprintf("TurnIP = %s\n", conf.Turn.TurnIP))
+		}
+		if conf.Turn.TurnPort > 0 {
+			output.WriteString(fmt.Sprintf("TurnPort = %d\n", conf.Turn.TurnPort))
+		}
+		if conf.Turn.PeerType != "" {
+			output.WriteString(fmt.Sprintf("PeerType = %s\n", conf.Turn.PeerType))
+		}
+		if conf.Turn.StreamsPerCred > 0 {
+			output.WriteString(fmt.Sprintf("StreamsPerCred = %d\n", conf.Turn.StreamsPerCred))
+		}
+		if conf.Turn.WatchdogTimeout > 0 {
+			output.WriteString(fmt.Sprintf("WatchdogTimeout = %d\n", conf.Turn.WatchdogTimeout))
+		}
+		if conf.Turn.Username != "" {
+			output.WriteString(fmt.Sprintf("TurnUsername = %s\n", conf.Turn.Username))
+		}
+		if conf.Turn.Password != "" {
+			output.WriteString(fmt.Sprintf("TurnPassword = %s\n", conf.Turn.Password))
+		}
+		if conf.Turn.Server != "" {
+			output.WriteString(fmt.Sprintf("TurnServer = %s\n", conf.Turn.Server))
+		}
+	}
+
 	for _, peer := range conf.Peers {
 		output.WriteString("\n[Peer]\n")
 

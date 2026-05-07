@@ -7,6 +7,7 @@ package tunnel
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -36,6 +37,7 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 	var adapter *driver.Adapter
 	var luid winipcfg.LUID
 	var config *conf.Config
+	var turnClient interface{ Stop() }
 	var err error
 	serviceError := services.ErrorSuccess
 
@@ -82,6 +84,9 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 
 		if logErr == nil && adapter != nil && config != nil {
 			logErr = runScriptCommand(config.Interface.PreDown, config.Name)
+		}
+		if turnClient != nil {
+			turnClient.Stop()
 		}
 		if watcher != nil {
 			watcher.Destroy()
@@ -146,6 +151,12 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 
 	log.Println("Resolving DNS names")
 	err = config.ResolveEndpoints()
+	if err != nil {
+		serviceError = services.ErrorDNSLookup
+		return
+	}
+
+	turnClient, err = startTurnProxy(context.Background(), config)
 	if err != nil {
 		serviceError = services.ErrorDNSLookup
 		return
