@@ -37,6 +37,28 @@ type Config struct {
 	Name      string
 	Interface Interface
 	Peers     []Peer
+	Turn      Turn
+}
+
+type Turn struct {
+	Enabled          bool
+	Mode             string
+	Link             string
+	Peer             Endpoint
+	Listen           Endpoint
+	Streams          int
+	UDP              bool
+	TurnIP           string
+	TurnPort         int
+	PeerType         string
+	StreamsPerCred   int
+	WatchdogTimeout  int
+	VKAutoCaptcha    bool
+	VKAutoCaptchaSet bool
+	VKCaptchaCommand string
+	Username         string
+	Password         string
+	Server           string
 }
 
 type Interface struct {

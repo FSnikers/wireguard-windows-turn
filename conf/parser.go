@@ -149,6 +149,7 @@ const (
 	inInterfaceSection parserState = iota
 	inPeerSection
 	notInASection
+	inTurnSection
 )
 
 func (c *Config) maybeAddPeer(p *Peer) {
@@ -182,6 +183,12 @@ func FromWgQuick(s, name string) (*Config, error) {
 			conf.maybeAddPeer(peer)
 			peer = &Peer{}
 			parserState = inPeerSection
+			continue
+		}
+		if lineLower == "[turn]" {
+			conf.maybeAddPeer(peer)
+			peer = nil
+			parserState = inTurnSection
 			continue
 		}
 		if parserState == notInASection {
@@ -257,6 +264,70 @@ func FromWgQuick(s, name string) (*Config, error) {
 				conf.Interface.TableOff = tableOff
 			default:
 				return nil, &ParseError{l18n.Sprintf("Invalid key for [Interface] section"), key}
+			}
+		} else if parserState == inTurnSection {
+			switch key {
+			case "enabled":
+				conf.Turn.Enabled = strings.EqualFold(val, "true") || val == "1" || strings.EqualFold(val, "yes")
+			case "mode":
+				conf.Turn.Mode = val
+			case "link":
+				conf.Turn.Link = val
+			case "peer":
+				e, err := parseEndpoint(val)
+				if err != nil {
+					return nil, err
+				}
+				conf.Turn.Peer = *e
+			case "listen":
+				e, err := parseEndpoint(val)
+				if err != nil {
+					return nil, err
+				}
+				conf.Turn.Listen = *e
+			case "streams":
+				n, err := strconv.Atoi(val)
+				if err != nil || n < 1 {
+					return nil, &ParseError{l18n.Sprintf("Invalid TURN stream count"), val}
+				}
+				conf.Turn.Streams = n
+			case "udp":
+				conf.Turn.UDP = strings.EqualFold(val, "true") || val == "1" || strings.EqualFold(val, "yes")
+			case "turnip":
+				conf.Turn.TurnIP = val
+			case "turnport":
+				n, err := strconv.Atoi(val)
+				if err != nil || n < 0 || n > 65535 {
+					return nil, &ParseError{l18n.Sprintf("Invalid TURN port"), val}
+				}
+				conf.Turn.TurnPort = n
+			case "peertype":
+				conf.Turn.PeerType = val
+			case "streamspercred":
+				n, err := strconv.Atoi(val)
+				if err != nil || n < 1 {
+					return nil, &ParseError{l18n.Sprintf("Invalid TURN streams-per-credential count"), val}
+				}
+				conf.Turn.StreamsPerCred = n
+			case "watchdogtimeout":
+				n, err := strconv.Atoi(val)
+				if err != nil || n < 0 {
+					return nil, &ParseError{l18n.Sprintf("Invalid TURN watchdog timeout"), val}
+				}
+				conf.Turn.WatchdogTimeout = n
+			case "vkautocaptcha":
+				conf.Turn.VKAutoCaptcha = strings.EqualFold(val, "true") || val == "1" || strings.EqualFold(val, "yes")
+				conf.Turn.VKAutoCaptchaSet = true
+			case "vkcaptchacommand":
+				conf.Turn.VKCaptchaCommand = val
+			case "turnusername":
+				conf.Turn.Username = val
+			case "turnpassword":
+				conf.Turn.Password = val
+			case "turnserver":
+				conf.Turn.Server = val
+			default:
+				return nil, &ParseError{l18n.Sprintf("Invalid key for [TURN] section"), key}
 			}
 		} else if parserState == inPeerSection {
 			switch key {

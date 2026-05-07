@@ -376,6 +376,24 @@ const (
 	fieldAllowedIPs
 	fieldEndpoint
 	fieldPersistentKeepalive
+	fieldTurnSection
+	fieldTurnEnabled
+	fieldTurnMode
+	fieldTurnLink
+	fieldTurnPeer
+	fieldTurnListen
+	fieldTurnStreams
+	fieldTurnUDP
+	fieldTurnIP
+	fieldTurnPort
+	fieldTurnPeerType
+	fieldTurnStreamsPerCred
+	fieldTurnWatchdogTimeout
+	fieldTurnVKAutoCaptcha
+	fieldTurnVKCaptchaCommand
+	fieldTurnUsername
+	fieldTurnPassword
+	fieldTurnServer
 	fieldInvalid
 )
 
@@ -383,8 +401,11 @@ func sectionForField(t field) field {
 	if t > fieldInterfaceSection && t < fieldPeerSection {
 		return fieldInterfaceSection
 	}
-	if t > fieldPeerSection && t < fieldInvalid {
+	if t > fieldPeerSection && t < fieldTurnSection {
 		return fieldPeerSection
+	}
+	if t > fieldTurnSection && t < fieldInvalid {
+		return fieldTurnSection
 	}
 	return fieldInvalid
 }
@@ -421,6 +442,40 @@ func (s stringSpan) field() field {
 		return fieldPreDown
 	case s.isCaselessSame("PostDown"):
 		return fieldPostDown
+	case s.isCaselessSame("Enabled"):
+		return fieldTurnEnabled
+	case s.isCaselessSame("Mode"):
+		return fieldTurnMode
+	case s.isCaselessSame("Link"):
+		return fieldTurnLink
+	case s.isCaselessSame("Peer"):
+		return fieldTurnPeer
+	case s.isCaselessSame("Listen"):
+		return fieldTurnListen
+	case s.isCaselessSame("Streams"):
+		return fieldTurnStreams
+	case s.isCaselessSame("UDP"):
+		return fieldTurnUDP
+	case s.isCaselessSame("TurnIP"):
+		return fieldTurnIP
+	case s.isCaselessSame("TurnPort"):
+		return fieldTurnPort
+	case s.isCaselessSame("PeerType"):
+		return fieldTurnPeerType
+	case s.isCaselessSame("StreamsPerCred"):
+		return fieldTurnStreamsPerCred
+	case s.isCaselessSame("WatchdogTimeout"):
+		return fieldTurnWatchdogTimeout
+	case s.isCaselessSame("VKAutoCaptcha"):
+		return fieldTurnVKAutoCaptcha
+	case s.isCaselessSame("VKCaptchaCommand"):
+		return fieldTurnVKCaptchaCommand
+	case s.isCaselessSame("TurnUsername"):
+		return fieldTurnUsername
+	case s.isCaselessSame("TurnPassword"):
+		return fieldTurnPassword
+	case s.isCaselessSame("TurnServer"):
+		return fieldTurnServer
 	}
 	return fieldInvalid
 }
@@ -431,6 +486,8 @@ func (s stringSpan) sectionType() field {
 		return fieldPeerSection
 	case s.isCaselessSame("[Interface]"):
 		return fieldInterfaceSection
+	case s.isCaselessSame("[TURN]"):
+		return fieldTurnSection
 	}
 	return fieldInvalid
 }
@@ -524,6 +581,27 @@ func (hsa *highlightSpanArray) highlightValue(parent, s stringSpan, section fiel
 		hsa.append(parent.s, s, validateHighlight(s.isValidPort(), highlightPort))
 	case fieldPersistentKeepalive:
 		hsa.append(parent.s, s, validateHighlight(s.isValidPersistentKeepAlive(), highlightKeepalive))
+	case fieldTurnPeer, fieldTurnListen, fieldTurnServer:
+		if !s.isValidEndpoint() {
+			hsa.append(parent.s, s, highlightError)
+			break
+		}
+		colon := s.len
+		for colon > 0 {
+			colon--
+			if *s.at(colon) == ':' {
+				break
+			}
+		}
+		hsa.append(parent.s, stringSpan{s.s, colon}, highlightHost)
+		hsa.append(parent.s, stringSpan{s.at(colon), 1}, highlightDelimiter)
+		hsa.append(parent.s, stringSpan{s.at(colon + 1), s.len - colon - 1}, highlightPort)
+	case fieldTurnStreams, fieldTurnPort, fieldTurnStreamsPerCred, fieldTurnWatchdogTimeout:
+		hsa.append(parent.s, s, validateHighlight(s.isValidPort(), highlightPort))
+	case fieldTurnIP:
+		hsa.append(parent.s, s, validateHighlight(s.isValidIPv4() || s.isValidIPv6() || s.isValidHostname(), highlightHost))
+	case fieldTurnEnabled, fieldTurnUDP, fieldTurnVKAutoCaptcha, fieldTurnMode, fieldTurnLink, fieldTurnPeerType, fieldTurnVKCaptchaCommand, fieldTurnUsername, fieldTurnPassword:
+		hsa.append(parent.s, s, highlightCmd)
 	case fieldEndpoint:
 		if !s.isValidEndpoint() {
 			hsa.append(parent.s, s, highlightError)
