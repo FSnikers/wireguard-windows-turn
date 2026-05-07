@@ -49,40 +49,11 @@ StreamsPerCred = 4
 WatchdogTimeout = 60
 ```
 
-
-## Example: VK credential mode
-
-```ini
-[Interface]
-PrivateKey = ...
-Address = 10.0.0.2/32
-
-[TURN]
-Enabled = true
-Mode = vk
-Link = https://vk.ru/call/join/YOUR_JOIN_TOKEN
-Listen = 127.0.0.1:51820
-Peer = vpn.example.com:51820
-Streams = 4
-UDP = true
-PeerType = proxy_v2
-StreamsPerCred = 4
-WatchdogTimeout = 60
-
-[Peer]
-PublicKey = ...
-AllowedIPs = 0.0.0.0/0, ::/0
-Endpoint = vpn.example.com:51820
-PersistentKeepalive = 25
-```
-
 ## Keys
 
 - `Enabled`: enables the proxy when set to `true`, `yes`, or `1`.
-- `Mode`: `static` for manually supplied TURN credentials, `wb` for the WB
-  credential flow, or `vk` for VK call-link credential acquisition ported from
-  the Android implementation.
-- `Link`: VK call join URL/token when `Mode = vk`.
+- `Mode`: `static` for manually supplied TURN credentials or `wb` for the WB
+  credential flow ported from the Android implementation.
 - `Listen`: local UDP endpoint used by WireGuardNT.
 - `Peer`: real WireGuard server endpoint. If omitted, the existing `[Peer]`
   `Endpoint` is used.

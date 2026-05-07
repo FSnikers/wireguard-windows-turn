@@ -69,10 +69,6 @@ type getCredsFunc func(context.Context, string, int) (string, string, string, er
 
 var packetPool = sync.Pool{New: func() any { return make([]byte, packetBufferMaxSize) }}
 
-func turnLog(format string, args ...any) {
-	log.Printf(format, args...)
-}
-
 func Start(ctx context.Context, cfg Config) (*Client, error) {
 	if err := cfg.normalize(); err != nil {
 		return nil, err
@@ -219,15 +215,6 @@ func (cfg Config) credentialsFunc() (getCredsFunc, error) {
 		streamsPerCred = cfg.StreamsPerCred
 		return func(ctx context.Context, link string, streamID int) (string, string, string, error) {
 			return getCredsCached(ctx, link, streamID, wbFetch)
-		}, nil
-	case "vk":
-		streamsPerCred = cfg.StreamsPerCred
-		link := normalizeVKJoinLink(cfg.Link)
-		if link == "" {
-			return nil, errors.New("vk TURN mode requires Link with a VK call join URL or token")
-		}
-		return func(ctx context.Context, _ string, streamID int) (string, string, string, error) {
-			return getCredsCached(ctx, link, streamID, fetchVkCreds)
 		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported TURN credential mode %q", cfg.Mode)
