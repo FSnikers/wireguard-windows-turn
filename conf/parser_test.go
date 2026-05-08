@@ -127,3 +127,42 @@ func TestParseEndpoint(t *testing.T) {
 		t.Error("Error was expected")
 	}
 }
+func TestParseWGTComments(t *testing.T) {
+	input := `
+[Interface]
+PrivateKey = yAnz5TF+lXXJte14tji3zlMNq+hd2rYUIgJBgB3fBmk=
+
+[Peer]
+PublicKey = xTIBA5rboUvnH4htodjb6e697QjLERt1NAB4mZqp8Dg=
+Endpoint = vpn.example.com:51820
+AllowedIPs = 0.0.0.0/0
+# [Peer] TURN extensions
+#@wgt:EnableTURN = true
+#@wgt:UseUDP = false
+#@wgt:IPPort = 1.2.3.4:56000
+#@wgt:VKLink = https://vk.com/call/join/abc123
+#@wgt:Mode = vk_link # inline comment from Android UI
+#@wgt:StreamNum = 4
+#@wgt:LocalPort = 9000
+#@wgt:PeerType = proxy_v2
+#@wgt:StreamsPerCred = 2
+#@wgt:TurnIP = 155.212.199.166
+#@wgt:TurnPort = 19302
+#@wgt:WatchdogTimeout = 30
+`
+	conf, err := FromWgQuick(input, "test")
+	if noError(t, err) {
+		equal(t, true, conf.Turn.Enabled)
+		equal(t, "vk_link", conf.Turn.Mode)
+		equal(t, "https://vk.com/call/join/abc123", conf.Turn.Link)
+		equal(t, Endpoint{Host: "1.2.3.4", Port: 56000}, conf.Turn.Peer)
+		equal(t, Endpoint{Host: "127.0.0.1", Port: 9000}, conf.Turn.Listen)
+		equal(t, 4, conf.Turn.Streams)
+		equal(t, false, conf.Turn.UDP)
+		equal(t, "proxy_v2", conf.Turn.PeerType)
+		equal(t, 2, conf.Turn.StreamsPerCred)
+		equal(t, "155.212.199.166", conf.Turn.TurnIP)
+		equal(t, 19302, conf.Turn.TurnPort)
+		equal(t, 30, conf.Turn.WatchdogTimeout)
+	}
+}

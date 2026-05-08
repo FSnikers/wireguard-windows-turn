@@ -286,8 +286,43 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 						solveErr = fmt.Errorf("missing fields for slider POC auto solve")
 					}
 				case captchaSolveModeManual:
-					log.Printf("[STREAM %d] [Captcha] Manual captcha fallback requested, but no Windows WebView captcha handler is wired yet", streamID)
-					solveErr = fmt.Errorf("manual VK captcha solving is not available in this build")
+					log.Printf("[STREAM %d] [Captcha] Triggering manual captcha fallback...", streamID)
+					manualCtx, manualCancel := context.WithTimeout(ctx, 60*time.Second)
+
+					type manualRes struct {
+						token string
+						key   string
+						err   error
+					}
+					resCh := make(chan manualRes, 1)
+
+					go func() {
+						captchaMutex.Lock()
+						defer captchaMutex.Unlock()
+
+						var t, k string
+						var e error
+						if captchaErr.RedirectURI != "" {
+							log.Printf("[STREAM %d] [Captcha] Triggering manual captcha solveCaptchaViaProxy...", streamID)
+							t, e = solveCaptchaViaProxy(captchaErr.RedirectURI)
+						} else if captchaErr.CaptchaImg != "" {
+							log.Printf("[STREAM %d] [Captcha] Triggering manual captcha solveCaptchaViaHTTP...", streamID)
+							k, e = solveCaptchaViaHTTP(captchaErr.CaptchaImg)
+						} else {
+							e = fmt.Errorf("no redirect_uri or captcha_img")
+						}
+						resCh <- manualRes{t, k, e}
+					}()
+
+					select {
+					case res := <-resCh:
+						successToken = res.token
+						captchaKey = res.key
+						solveErr = res.err
+					case <-manualCtx.Done():
+						solveErr = fmt.Errorf("manual captcha timed out after 60s")
+					}
+					manualCancel()
 				}
 
 				// If solving failed (auto or manual) or timed out

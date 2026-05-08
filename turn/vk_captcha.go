@@ -215,6 +215,9 @@ func solveVkCaptchaAutomatic(ctx context.Context, streamID int, client tlsclient
 */
 
 func solveVkCaptcha(ctx context.Context, captchaErr *VkCaptchaError, streamID int, client tlsclient.HttpClient, profile Profile, useSliderPOC bool) (string, error) {
+	captchaMutex.Lock()
+	defer captchaMutex.Unlock()
+
 	if useSliderPOC {
 		log.Printf("[STREAM %d] [Captcha] Solving captcha with slider POC...", streamID)
 	} else {

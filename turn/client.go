@@ -216,6 +216,14 @@ func (cfg Config) credentialsFunc() (getCredsFunc, error) {
 		return func(ctx context.Context, link string, streamID int) (string, string, string, error) {
 			return getCredsCached(ctx, link, streamID, wbFetch)
 		}, nil
+	case "vk_link", "vk", "vklink":
+		if cfg.Link == "" {
+			return nil, errors.New("vk_link TURN mode requires Link or VKLink")
+		}
+		streamsPerCred = cfg.StreamsPerCred
+		return func(ctx context.Context, link string, streamID int) (string, string, string, error) {
+			return getCredsCached(ctx, normalizeVKJoinLink(link), streamID, fetchVkCreds)
+		}, nil
 	default:
 		return nil, fmt.Errorf("unsupported TURN credential mode %q", cfg.Mode)
 	}

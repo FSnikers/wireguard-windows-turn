@@ -130,6 +130,104 @@ func parseKeyBase64(s string) (*Key, error) {
 	copy(key[:], k)
 	return &key, nil
 }
+func parseWGTBool(s string) bool {
+	return strings.EqualFold(s, "true") || s == "1" || strings.EqualFold(s, "yes") || strings.EqualFold(s, "on")
+}
+
+func (c *Config) ensureWGTDefaults() {
+	if c.Turn.Mode == "" {
+		c.Turn.Mode = "vk_link"
+	}
+	if c.Turn.Streams == 0 {
+		c.Turn.Streams = 4
+	}
+	if c.Turn.Listen.IsEmpty() {
+		c.Turn.Listen = Endpoint{Host: "127.0.0.1", Port: 9000}
+	}
+	if c.Turn.PeerType == "" {
+		c.Turn.PeerType = "proxy_v2"
+	}
+	if c.Turn.StreamsPerCred == 0 {
+		c.Turn.StreamsPerCred = 4
+	}
+}
+
+func (c *Config) parseWGTComment(line string) (bool, error) {
+	line = strings.TrimSpace(line)
+	if !strings.HasPrefix(line, "#@wgt:") {
+		return false, nil
+	}
+	c.ensureWGTDefaults()
+	body := strings.TrimSpace(strings.TrimPrefix(line, "#@wgt:"))
+	equals := strings.IndexByte(body, '=')
+	if equals < 0 {
+		return true, nil
+	}
+	key := strings.ToLower(strings.TrimSpace(body[:equals]))
+	val := strings.TrimSpace(body[equals+1:])
+	if beforeComment, _, ok := strings.Cut(val, "#"); ok {
+		val = strings.TrimSpace(beforeComment)
+	}
+	if val == "" {
+		return true, nil
+	}
+
+	switch key {
+	case "enableturn":
+		c.Turn.Enabled = parseWGTBool(val)
+	case "useudp":
+		c.Turn.UDP = parseWGTBool(val)
+	case "ipport":
+		e, err := parseEndpoint(val)
+		if err != nil {
+			return true, err
+		}
+		c.Turn.Peer = *e
+	case "vklink":
+		c.Turn.Link = val
+	case "mode":
+		c.Turn.Mode = val
+	case "streamnum":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 1 {
+			return true, &ParseError{l18n.Sprintf("Invalid TURN stream count"), val}
+		}
+		c.Turn.Streams = n
+	case "localport":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 1 || n > 65535 {
+			return true, &ParseError{l18n.Sprintf("Invalid TURN local port"), val}
+		}
+		c.Turn.Listen = Endpoint{Host: "127.0.0.1", Port: uint16(n)}
+	case "turnip":
+		c.Turn.TurnIP = val
+	case "turnport":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 || n > 65535 {
+			return true, &ParseError{l18n.Sprintf("Invalid TURN port"), val}
+		}
+		c.Turn.TurnPort = n
+	case "watchdogtimeout":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 0 {
+			return true, &ParseError{l18n.Sprintf("Invalid TURN watchdog timeout"), val}
+		}
+		c.Turn.WatchdogTimeout = n
+	case "nodtls":
+		if parseWGTBool(val) {
+			c.Turn.PeerType = "wireguard"
+		}
+	case "peertype":
+		c.Turn.PeerType = val
+	case "streamspercred":
+		n, err := strconv.Atoi(val)
+		if err != nil || n < 1 {
+			return true, &ParseError{l18n.Sprintf("Invalid TURN streams-per-credential count"), val}
+		}
+		c.Turn.StreamsPerCred = n
+	}
+	return true, nil
+}
 
 func splitList(s string) ([]string, error) {
 	var out []string
@@ -168,6 +266,12 @@ func FromWgQuick(s, name string) (*Config, error) {
 	sawPrivateKey := false
 	var peer *Peer
 	for _, line := range lines {
+		if handled, err := conf.parseWGTComment(line); handled {
+			if err != nil {
+				return nil, err
+			}
+			continue
+		}
 		line, _, _ = strings.Cut(line, "#")
 		line = strings.TrimSpace(line)
 		lineLower := strings.ToLower(line)
