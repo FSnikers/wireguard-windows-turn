@@ -1,4 +1,4 @@
-﻿/* SPDX-License-Identifier: MIT */
+/* SPDX-License-Identifier: MIT */
 
 package turn
 
@@ -15,8 +15,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	neturl "net/url"
-	"os/exec"
-	"runtime"
 	"strings"
 	"time"
 )
@@ -577,38 +575,28 @@ func solveCaptchaViaProxy(redirectURI string) (string, error) {
 
 	return runCaptchaServerAndWait(mux, localCaptchaURLForTarget(targetURL), keyCh, "proxy HTTP server error")
 }
-
 func openBrowser(url string) {
-	for _, cmd := range browserOpenCommands(runtime.GOOS, url) {
-		if err := exec.Command(cmd.name, cmd.args...).Start(); err == nil {
-			return
-		}
-	}
-}
+	// Отправляем URL в UI процесс для открытия браузера
+	managerURL := "http://127.0.0.1:12345/open-browser" // тот же порт
 
-func browserOpenCommands(goos string, url string) []browserCommand {
-	switch goos {
-	case "windows":
-		return []browserCommand{{name: "cmd", args: []string{"/c", "start", url}}}
-	case "darwin":
-		return []browserCommand{{name: "open", args: []string{url}}}
-	case "linux":
-		return []browserCommand{
-			{name: "xdg-open", args: []string{url}},
-			{name: "gio", args: []string{"open", url}},
-		}
-	case "android":
-		return []browserCommand{
-			{name: "termux-open-url", args: []string{url}},
-			{name: "/system/bin/am", args: []string{"start", "-a", "android.intent.action.VIEW", "-d", url}},
-			{name: "am", args: []string{"start", "-a", "android.intent.action.VIEW", "-d", url}},
-			{name: "xdg-open", args: []string{url}},
-		}
-	case "ios":
-		return []browserCommand{
-			{name: "open", args: []string{url}},
-			{name: "uiopen", args: []string{url}},
-		}
+	payload := map[string]string{
+		"url": url,
 	}
-	return nil
+	jsonData, _ := json.Marshal(payload)
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Post(managerURL, "application/json", bytes.NewBuffer(jsonData))
+
+	if err == nil && resp.StatusCode == 200 {
+		log.Printf("Successfully sent URL to UI for browser opening")
+		resp.Body.Close()
+		return
+	}
+
+	if err != nil {
+		log.Printf("Could not reach UI browser opener (%v)", err)
+	}
+
+	// Fallback: выводим URL в консоль
+	fmt.Printf("\n🔐 MANUAL CAPTCHA URL: %s\n\n", url)
 }

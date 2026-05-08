@@ -276,6 +276,10 @@ func main() {
 		}
 		manager.InitializeIPCClient(readPipe, writePipe, eventPipe)
 		ui.IsAdmin = isAdmin
+
+		browserOpener := StartBrowserOpener()
+		defer browserOpener.Stop()
+
 		ui.RunUI()
 		return
 	case "/dumplog":
