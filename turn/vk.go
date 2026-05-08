@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net"
 	neturl "net/url"
@@ -127,7 +128,7 @@ func fetchVkCreds(ctx context.Context, link string) (string, string, string, err
 		}
 		lastErr = err
 		if strings.Contains(err.Error(), "error_code:29") || strings.Contains(err.Error(), "Rate limit") {
-			turnLog("[VK Auth] Rate limit detected, trying next credentials...")
+			log.Printf("[VK Auth] Rate limit detected, trying next credentials...")
 		}
 	}
 	return "", "", "", fmt.Errorf("all VK credentials failed: %w", lastErr)
@@ -165,7 +166,7 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 		}
 		defer func() {
 			if closeErr := httpResp.Body.Close(); closeErr != nil {
-				turnLog("close response body: %s", closeErr)
+				log.Printf("close response body: %s", closeErr)
 			}
 		}()
 
@@ -188,11 +189,11 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 	data := fmt.Sprintf("client_id=%s&token_type=messages&client_secret=%s&version=1&app_id=%s", creds.ClientID, creds.ClientSecret, creds.ClientID)
 	resp, err := doRequest(data, "https://login.vk.ru/?act=get_anonym_token")
 	if err != nil {
-		turnLog("[VK Auth] Token 1 request failed: %v", err)
+		log.Printf("[VK Auth] Token 1 request failed: %v", err)
 		return "", "", "", err
 	}
 	if errMsg, ok := resp["error"].(map[string]interface{}); ok {
-		turnLog("[VK Auth] Token 1 VK API error: %v", errMsg)
+		log.Printf("[VK Auth] Token 1 VK API error: %v", errMsg)
 		return "", "", "", fmt.Errorf("VK API error (token1): %v", errMsg)
 	}
 	dataRaw, ok := resp["data"]
@@ -211,7 +212,7 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 	if !ok {
 		return "", "", "", fmt.Errorf("token1 is not a string: %v", token1Raw)
 	}
-	turnLog("[VK Auth] Token 1 (anonym_token) received")
+	log.Printf("[VK Auth] Token 1 (anonym_token) received")
 
 	vkDelayRandom(100, 200)
 
@@ -219,9 +220,9 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 	data = fmt.Sprintf("vk_join_link=https://vk.ru/call/join/%s&fields=photo_200&access_token=%s", neturl.QueryEscape(link), token1)
 	resp, err = doRequest(data, "https://api.vk.ru/method/calls.getCallPreview?v=5.275&client_id="+creds.ClientID)
 	if err != nil {
-		turnLog("[VK Auth] getCallPreview request failed: %v", err)
+		log.Printf("[VK Auth] getCallPreview request failed: %v", err)
 	} else {
-		turnLog("[VK Auth] getCallPreview completed (optional)")
+		log.Printf("[VK Auth] getCallPreview completed (optional)")
 	}
 
 	vkDelayRandom(500, 1000)
@@ -246,13 +247,13 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 			if captchaErr != nil && captchaErr.IsCaptchaError() {
 				solveMode, hasSolveMode := captchaSolveModeForAttempt(attempt, manualCaptcha, autoCaptchaSliderPOC)
 				if !hasSolveMode {
-					turnLog("[STREAM %d] [Captcha] No more solve modes available (attempt %d)", streamID, attempt+1)
+					log.Printf("[STREAM %d] [Captcha] No more solve modes available (attempt %d)", streamID, attempt+1)
 
 					// Engage global lockout to protect API
 					//globalCaptchaLockout.Store(time.Now().Add(60 * time.Second).Unix())
 
 					//if connectedStreams.Load() == 0 {
-					//	turnLog("[STREAM %d] [FATAL] 0 connected streams and captcha solve modes exhausted.", streamID)
+					//	log.Printf("[STREAM %d] [FATAL] 0 connected streams and captcha solve modes exhausted.", streamID)
 					//	return "", "", "", fmt.Errorf("FATAL_CAPTCHA_FAILED_NO_STREAMS")
 					//}
 
@@ -265,37 +266,37 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 
 				switch solveMode {
 				case captchaSolveModeAuto:
-					turnLog("[Captcha] Attempt 1. Try auto solving...")
+					log.Printf("[Captcha] Attempt 1. Try auto solving...")
 					if captchaErr.SessionToken != "" && captchaErr.RedirectURI != "" {
 						successToken, solveErr = solveVkCaptcha(ctx, captchaErr, streamID, client, profile, false)
 						if solveErr != nil {
-							turnLog("[STREAM %d] [Captcha] Auto captcha failed: %v", streamID, solveErr)
+							log.Printf("[STREAM %d] [Captcha] Auto captcha failed: %v", streamID, solveErr)
 						}
 					} else {
 						solveErr = fmt.Errorf("missing fields for auto solve")
 					}
 				case captchaSolveModeSliderPOC:
-					turnLog("[Captcha] Attempt 2. Try slider solving...")
+					log.Printf("[Captcha] Attempt 2. Try slider solving...")
 					if captchaErr.SessionToken != "" && captchaErr.RedirectURI != "" {
 						successToken, solveErr = solveVkCaptcha(ctx, captchaErr, streamID, client, profile, true)
 						if solveErr != nil {
-							turnLog("[STREAM %d] [Captcha] Auto captcha slider POC failed: %v", streamID, solveErr)
+							log.Printf("[STREAM %d] [Captcha] Auto captcha slider POC failed: %v", streamID, solveErr)
 						}
 					} else {
 						solveErr = fmt.Errorf("missing fields for slider POC auto solve")
 					}
 				case captchaSolveModeManual:
-					turnLog("[STREAM %d] [Captcha] Manual captcha fallback requested, but no Windows WebView captcha handler is wired yet", streamID)
+					log.Printf("[STREAM %d] [Captcha] Manual captcha fallback requested, but no Windows WebView captcha handler is wired yet", streamID)
 					solveErr = fmt.Errorf("manual VK captcha solving is not available in this build")
 				}
 
 				// If solving failed (auto or manual) or timed out
 				if solveErr != nil {
-					turnLog("[STREAM %d] [Captcha] %s failed (attempt %d): %v", streamID, captchaSolveModeLabel(solveMode), attempt+1, solveErr)
+					log.Printf("[STREAM %d] [Captcha] %s failed (attempt %d): %v", streamID, captchaSolveModeLabel(solveMode), attempt+1, solveErr)
 
 					nextSolveMode, hasNextSolveMode := captchaSolveModeForAttempt(attempt+1, manualCaptcha, autoCaptchaSliderPOC)
 					if hasNextSolveMode {
-						turnLog("[STREAM %d] [Captcha] Falling back to %s...", streamID, captchaSolveModeLabel(nextSolveMode))
+						log.Printf("[STREAM %d] [Captcha] Falling back to %s...", streamID, captchaSolveModeLabel(nextSolveMode))
 						continue
 					}
 
@@ -304,7 +305,7 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 
 					// If we have 0 streams alive, this is fatal
 					//if connectedStreams.Load() == 0 {
-					//	turnLog("[STREAM %d] [FATAL] 0 connected streams and manual captcha failed/timed out.", streamID)
+					//	log.Printf("[STREAM %d] [FATAL] 0 connected streams and manual captcha failed/timed out.", streamID)
 					//	return "", "", "", fmt.Errorf("FATAL_CAPTCHA_FAILED_NO_STREAMS")
 					//}
 
@@ -350,7 +351,7 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 		break
 	} // end of for
 
-	turnLog("[VK Auth] Token 2 (messages token) received")
+	log.Printf("[VK Auth] Token 2 (messages token) received")
 
 	vkDelayRandom(100, 200)
 
@@ -372,7 +373,7 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 	if !ok {
 		return "", "", "", fmt.Errorf("token3 is not a string: %v", token3Raw)
 	}
-	turnLog("[VK Auth] Token 3 (session_key) received")
+	log.Printf("[VK Auth] Token 3 (session_key) received")
 
 	vkDelayRandom(100, 200)
 
@@ -385,7 +386,7 @@ func getTokenChain(ctx context.Context, link string, creds VKCredentials, client
 	if errMsg, ok := resp["error"].(string); ok && errMsg != "" {
 		return "", "", "", fmt.Errorf("Token 4 API error: %s", errMsg)
 	}
-	turnLog("[VK Auth] TURN credentials received")
+	log.Printf("[VK Auth] TURN credentials received")
 
 	tsRaw, ok := resp["turn_server"]
 	if !ok {

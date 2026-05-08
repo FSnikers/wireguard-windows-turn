@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	neturl "net/url"
 	"strconv"
@@ -41,7 +42,7 @@ func ParseVkCaptchaError(errData map[string]interface{}) *VkCaptchaError {
 	// Extract error_code
 	codeFloat, ok := errData["error_code"].(float64)
 	if !ok {
-		turnLog("missing error_code in captcha error data")
+		log.Printf("missing error_code in captcha error data")
 		return nil
 	}
 	code := int(codeFloat)
@@ -49,7 +50,7 @@ func ParseVkCaptchaError(errData map[string]interface{}) *VkCaptchaError {
 	// Extract redirect_uri
 	RedirectURI, ok := errData["redirect_uri"].(string)
 	if !ok {
-		turnLog("missing redirect_uri in captcha error data")
+		log.Printf("missing redirect_uri in captcha error data")
 		return nil
 	}
 
@@ -60,7 +61,7 @@ func ParseVkCaptchaError(errData map[string]interface{}) *VkCaptchaError {
 		if sidNum, ok2 := errData["captcha_sid"].(float64); ok2 {
 			captchaSid = fmt.Sprintf("%.0f", sidNum)
 		} else {
-			turnLog("missing captcha_sid in captcha error data")
+			log.Printf("missing captcha_sid in captcha error data")
 			return nil
 		}
 	}
@@ -68,14 +69,14 @@ func ParseVkCaptchaError(errData map[string]interface{}) *VkCaptchaError {
 	// Extract captcha_img
 	captchaImg, ok := errData["captcha_img"].(string)
 	if !ok {
-		turnLog("missing captcha_img in captcha error data")
+		log.Printf("missing captcha_img in captcha error data")
 		return nil
 	}
 
 	// Extract error_msg
 	errorMsg, ok := errData["error_msg"].(string)
 	if !ok {
-		turnLog("missing error_msg in captcha error data")
+		log.Printf("missing error_msg in captcha error data")
 		return nil
 	}
 
@@ -85,7 +86,7 @@ func ParseVkCaptchaError(errData map[string]interface{}) *VkCaptchaError {
 		if parsed, err := neturl.Parse(RedirectURI); err == nil {
 			sessionToken = parsed.Query().Get("session_token")
 		} else {
-			turnLog("failed to parse redirect_uri: %v", err)
+			log.Printf("failed to parse redirect_uri: %v", err)
 			return nil
 		}
 	}
@@ -141,21 +142,21 @@ func solveVkCaptcha(ctx context.Context, streamID int, client tlsclient.HttpClie
 	captchaMutex.Lock()
 	defer captchaMutex.Unlock()
 
-	turnLog("[Captcha] Solving Not Robot Captcha...")
+	log.Printf("[Captcha] Solving Not Robot Captcha...")
 
 	// Step 1: Try automatic solution
-	turnLog("[Captcha] Attempting automatic solution...")
+	log.Printf("[Captcha] Attempting automatic solution...")
 	successToken, err := solveVkCaptchaAutomatic(ctx, streamID, client, profile, captchaErr)
 	if err == nil && successToken != "" {
-		turnLog("[Captcha] Automatic solution SUCCESS!")
+		log.Printf("[Captcha] Automatic solution SUCCESS!")
 		return successToken, nil
 	}
 
-	turnLog("[Captcha] Automatic solution FAILED: %v", err)
-	turnLog("[Captcha] Falling back to WebView...")
+	log.Printf("[Captcha] Automatic solution FAILED: %v", err)
+	log.Printf("[Captcha] Falling back to WebView...")
 
 	// Step 2: Fall back to WebView
-	turnLog("[Captcha] Opening WebView for manual solving...")
+	log.Printf("[Captcha] Opening WebView for manual solving...")
 	redirectURICStr := C.CString(captchaErr.RedirectUri)
 	defer C.free(unsafe.Pointer(redirectURICStr))
 
@@ -170,7 +171,7 @@ func solveVkCaptcha(ctx context.Context, streamID int, client tlsclient.HttpClie
 		return "", fmt.Errorf("WebView captcha solving failed: returned empty token")
 	}
 
-	turnLog("[Captcha] WebView solution SUCCESS! Got success_token")
+	log.Printf("[Captcha] WebView solution SUCCESS! Got success_token")
 	return successToken, nil
 }
 
@@ -187,11 +188,11 @@ func solveVkCaptchaAutomatic(ctx context.Context, streamID int, client tlsclient
 		return "", fmt.Errorf("failed to fetch captcha bootstrap: %w", err)
 	}
 
-	turnLog("[Captcha] PoW input: %s, difficulty: %d", bootstrap.PowInput, bootstrap.Difficulty)
+	log.Printf("[Captcha] PoW input: %s, difficulty: %d", bootstrap.PowInput, bootstrap.Difficulty)
 
 	// Step 2: Solve PoW
 	hash := solvePoW(bootstrap.PowInput, bootstrap.Difficulty)
-	turnLog("[Captcha] PoW solved: hash=%s", hash)
+	log.Printf("[Captcha] PoW solved: hash=%s", hash)
 
 	// Step 3: Call captchaNotRobot API with slider POC support
 	successToken, err := callCaptchaNotRobotWithSliderPOC(
@@ -208,16 +209,16 @@ func solveVkCaptchaAutomatic(ctx context.Context, streamID int, client tlsclient
 		return "", fmt.Errorf("callCaptchaNotRobotWithSliderPOC API failed: %w", err)
 	}
 
-	turnLog("[Captcha] Success! Got success_token")
+	log.Printf("[Captcha] Success! Got success_token")
 	return successToken, nil
 }
 */
 
 func solveVkCaptcha(ctx context.Context, captchaErr *VkCaptchaError, streamID int, client tlsclient.HttpClient, profile Profile, useSliderPOC bool) (string, error) {
 	if useSliderPOC {
-		turnLog("[STREAM %d] [Captcha] Solving captcha with slider POC...", streamID)
+		log.Printf("[STREAM %d] [Captcha] Solving captcha with slider POC...", streamID)
 	} else {
-		turnLog("[STREAM %d] [Captcha] Solving captcha...", streamID)
+		log.Printf("[STREAM %d] [Captcha] Solving captcha...", streamID)
 	}
 
 	if captchaErr.SessionToken == "" {
@@ -232,10 +233,10 @@ func solveVkCaptcha(ctx context.Context, captchaErr *VkCaptchaError, streamID in
 		return "", fmt.Errorf("failed to fetch captcha bootstrap: %w", err)
 	}
 
-	turnLog("[STREAM %d] [Captcha] PoW input: %s, difficulty: %d", streamID, bootstrap.PowInput, bootstrap.Difficulty)
+	log.Printf("[STREAM %d] [Captcha] PoW input: %s, difficulty: %d", streamID, bootstrap.PowInput, bootstrap.Difficulty)
 
 	hash := solvePoW(bootstrap.PowInput, bootstrap.Difficulty)
-	turnLog("[STREAM %d] [Captcha] PoW solved: hash=%s", streamID, hash)
+	log.Printf("[STREAM %d] [Captcha] PoW solved: hash=%s", streamID, hash)
 
 	var successToken string
 	if useSliderPOC {
@@ -255,7 +256,7 @@ func solveVkCaptcha(ctx context.Context, captchaErr *VkCaptchaError, streamID in
 		return "", fmt.Errorf("captchaNotRobot API failed: %w", err)
 	}
 
-	turnLog("[STREAM %d] [Captcha] Success! Got success_token", streamID)
+	log.Printf("[STREAM %d] [Captcha] Success! Got success_token", streamID)
 	return successToken, nil
 }
 
@@ -382,14 +383,14 @@ func callCaptchaNotRobot(ctx context.Context, sessionToken, hash string, streamI
 
 	baseParams := fmt.Sprintf("session_token=%s&domain=vk.com&adFp=&access_token=", neturl.QueryEscape(sessionToken))
 
-	turnLog("[STREAM %d] [Captcha] Step 1/4: settings", streamID)
+	log.Printf("[STREAM %d] [Captcha] Step 1/4: settings", streamID)
 	if _, err := vkReq("captchaNotRobot.settings", baseParams); err != nil {
 		return "", fmt.Errorf("settings failed: %w", err)
 	}
 
 	time.Sleep(200 * time.Millisecond)
 
-	turnLog("[STREAM %d] [Captcha] Step 2/4: componentDone", streamID)
+	log.Printf("[STREAM %d] [Captcha] Step 2/4: componentDone", streamID)
 	browserFp := generateBrowserFp(profile)
 	deviceJSON := buildCaptchaDeviceJSON(profile)
 	componentDoneData := baseParams + fmt.Sprintf("&browser_fp=%s&device=%s", browserFp, neturl.QueryEscape(deviceJSON))
@@ -400,7 +401,7 @@ func callCaptchaNotRobot(ctx context.Context, sessionToken, hash string, streamI
 
 	time.Sleep(200 * time.Millisecond)
 
-	turnLog("[STREAM %d] [Captcha] Step 3/4: check", streamID)
+	log.Printf("[STREAM %d] [Captcha] Step 3/4: check", streamID)
 	cursorJSON := generateFakeCursor()
 	answer := base64.StdEncoding.EncodeToString([]byte("{}"))
 
@@ -439,10 +440,10 @@ func callCaptchaNotRobot(ctx context.Context, sessionToken, hash string, streamI
 
 	time.Sleep(200 * time.Millisecond)
 
-	turnLog("[STREAM %d] [Captcha] Step 4/4: endSession", streamID)
+	log.Printf("[STREAM %d] [Captcha] Step 4/4: endSession", streamID)
 	_, err = vkReq("captchaNotRobot.endSession", baseParams)
 	if err != nil {
-		turnLog("[STREAM %d] [Captcha] Warning: endSession failed: %v", streamID, err)
+		log.Printf("[STREAM %d] [Captcha] Warning: endSession failed: %v", streamID, err)
 	}
 
 	return successToken, nil
